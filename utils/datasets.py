@@ -598,8 +598,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             augment_hsv(img, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
 
             # Apply cutouts
-            # if random.random() < 0.9:
-            #     labels = cutout(img, labels)
+            if 'cutout' in hyp and random.random() < hyp['cutout']:
+                labels = cutout(img, labels)
 
         nL = len(labels)  # number of labels
         if nL:
@@ -1258,14 +1258,14 @@ def cutout(image, labels):
         return inter_area / box2_area
 
     # create random masks
-    scales = [0.5] * 1 + [0.25] * 2 + [0.125] * 4 + [0.0625] * 8 + [0.03125] * 16  # image size fraction
-    for s in scales:
-        mask_h = random.randint(1, int(h * s))
-        mask_w = random.randint(1, int(w * s))
+    # scales = [0.5] * 1 + [0.25] * 2 + [0.125] * 4 + [0.0625] * 8 + [0.03125] * 16  # image size fraction
+    for label in labels:
+        mask_h = random.randint(0, int((label[4] - label[2]) * 0.5))  # create random masks
+        mask_w = random.randint(int((label[3] - label[1]) * 0.8), int((label[3] - label[1]) * 1.2))
 
         # box
-        xmin = max(0, random.randint(0, w) - mask_w // 2)
-        ymin = max(0, random.randint(0, h) - mask_h // 2)
+        xmin = max(0, int(label[1] + label[3] - mask_w) // 2)
+        ymin = max(0, int(label[2] - mask_h // 5))
         xmax = min(w, xmin + mask_w)
         ymax = min(h, ymin + mask_h)
 
@@ -1273,7 +1273,7 @@ def cutout(image, labels):
         image[ymin:ymax, xmin:xmax] = [random.randint(64, 191) for _ in range(3)]
 
         # return unobscured labels
-        if len(labels) and s > 0.03:
+        if len(labels) and (label[3] > 0.03 or label[4] > 0.03):
             box = np.array([xmin, ymin, xmax, ymax], dtype=np.float32)
             ioa = bbox_ioa(box, labels[:, 1:5])  # intersection over area
             labels = labels[ioa < 0.60]  # remove >60% obscured labels
